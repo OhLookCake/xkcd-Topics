@@ -1,0 +1,16 @@
+{
+    "contents" : "\n\nsetwd(\"C:/etc/Projects/Data/_Ongoing/xkcd Topics\")\n\nrequire(RTextTools)\nrequire(topicmodels)\n\n\ndfTranscripts <- read.table(\"data/transcriptsEdit.csv\",header=F,sep=\"\\t\",colClasses=c(\"character\",\"character\"),col.names=c(\"url\",\"text\"),quote=\"\")\n\ndfTranscripts$comicnumber <- sapply(dfTranscripts$url, function(x) strsplit(x,\"/\")[[1]][4])\n\n\n\n########this is where we retain only the 'text' part\n\n###Text Cleaning\n\n#Remove alt-text\ndfTranscripts$text <- sub(\"\\\\{\\\\{.*\\\\}\\\\}\",\"\",dfTranscripts$text)\n\n#Remove scene-description.\n#This might initially seem like a bad idea, but scne descriptions contain stuff like [[Man standing in a room]] ,etc. \n#I'll revisit this, to see if there's a better solution\ndfTranscripts$text <- sub(\"\\\\[\\\\[.*\\\\]\\\\]\",\"\",dfTranscripts$text)\n\n\n#remove speaker id\n#for each pipe-surrounded string, check if there is a : there. If there is, discard the part before the :\n#this is only moderately accurate, but it's the best way I could think of, without manual intervention\n\nRemoveSpeakers <- function(trans){\n\ttrans <- paste0(\"|\",trans,\"|\")\n\tframes <- strsplit(trans,\"\\\\|\")[[1]]\n\tprocessed.frames <- sapply(frames[grep(\"\\\\:\",frames)], function(f) {\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tdialogue<-strsplit(f,\":\")[[1]]\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tdo.call(paste,as.list(c(\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tdialogue[2:length(dialogue)],sep=\"\\\\:\")\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t  ))\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t})\n\tframes[grep(\"\\\\:\",frames)] <- processed.frames\n\tdo.call(paste,as.list(c(frames,sep=\"|\")))\n}\n\ndfTranscripts$text <- sapply(dfTranscripts$text,RemoveSpeakers)\n\n\n##### dtm\n\ndtm <- create_matrix(dfTranscripts$text,language=\"english\",\n\t\t\t\t\t stripWhitespace=T, toLower=T,stemWords=T,removeStopwords=T,\n\t\t\t\t\t removeNumbers=TRUE, removePunctuation=T,removeSparseTerms=1-(2/nrow(dfTranscripts))\n)\n#\t\t\t\t\t weighting=weightTfIdf)\n\n# Drop documents with no text (left)\ndtm <- dtm[rowSums(as.matrix(dtm))>0,]\n\n\n#### LDA\nset.seed(11)\ntrainpoints <- sample(1:nrow(dtm),0.8*nrow(dtm),replace=F)\n\nk <- 3\nlda <- LDA(dtm[trainpoints,], k)\n\nterms(lda,5)\n\nt<-topics(lda)\nnames(t)<-1:length(t)\nhist(t,breaks=c(0,1:k),labels=terms(lda))\n\n\n\n\n\n\n\n\n\n",
+    "created" : 1379576844026.000,
+    "dirty" : true,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1147630711",
+    "id" : "5FEBB7EF",
+    "lastKnownWriteTime" : 1379583540,
+    "path" : "C:/etc/Projects/Data/_Ongoing/xkcd Topics/scripts/topicExtraction.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "source_on_save" : false,
+    "type" : "r_source"
+}
