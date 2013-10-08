@@ -49,10 +49,10 @@ dtm.control <- list(
 	tolower 			= T,
 	removePunctuation 	= T,
 	removeNumbers 		= T,
-	stopwords 			= c(stopwords("english"),
-					 extendedstopwords),
+	stopwords 			= c(stopwords("english"),extendedstopwords),
 	stemming 			= T,
-	wordLengths 		= c(3,Inf)
+	wordLengths 		= c(3,Inf),
+	weighting 			= weightTf
 )
 
 dtm <- DocumentTermMatrix(Corpus(VectorSource(dfTranscripts$text)),
@@ -64,7 +64,7 @@ dtm <- dtm[rowSums(as.matrix(dtm))>3,]
 
 
 #### Topic Modeling - LDA ####
-set.seed(1024)
+set.seed(5)
 trainpoints <- sample(1:nrow(dtm),0.8*nrow(dtm),replace=F)
 
 k <- 4
@@ -73,17 +73,24 @@ terms(lda,10)
 
 
 #### Examining Results ####
+require(reshape2)
+require(ggplot2)
 
 ldatopics<-topics(lda)
 names(ldatopics)<-1:length(ldatopics)
 hist(ldatopics,breaks=c(0,1:k),labels=terms(lda))
 
-
 termgenerator <- posterior(lda)$terms
-y<-apply(termgenerator,1,function(x) x[order(x,decreasing=T)[1:100]])
-plot(1:100,y[,1],type="l",col=1,ylim=c(min(y),max(y)))
-lines(1:100,y[,2],type="l",col=2)
-lines(1:100,y[,3],type="l",col=3)
-lines(1:100,y[,4],type="l",col=4)
+termimportance <- apply(termgenerator,1,function(x) x[order(x,decreasing=T)[1:100]])
+termimportance.longform <- melt(termimportance,value.name="probability",varnames=c("termnumber","topic"))
+
+ggplot(data=termimportance.longform,
+	   aes(
+		x=termnumber,
+		y=probability,
+		color=factor(topic),
+		group=topic)) + 
+	geom_line()
+
 
 
