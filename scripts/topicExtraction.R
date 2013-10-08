@@ -2,19 +2,16 @@
 
 setwd("C:/etc/Projects/Data/_Ongoing/xkcd Topics")
 
-require(RTextTools)
+require(tm)
 require(topicmodels)
 
 
-dfTranscripts <- read.table("data/transcriptsEdit.csv",header=F,sep="\t",colClasses=c("character","character"),col.names=c("url","text"),quote="")
+dfTranscripts <- read.table("data/transcripts.csv",header=F,sep="\t",colClasses=c("character","character"),col.names=c("url","text"),quote="")
 
 dfTranscripts$comicnumber <- sapply(dfTranscripts$url, function(x) strsplit(x,"/")[[1]][4])
 
 
-
-########this is where we retain only the 'text' part
-
-###Text Cleaning
+#### Text Cleaning ####
 
 #Remove alt-text
 dfTranscripts$text <- sub("\\{\\{.*\\}\\}","",dfTranscripts$text)
@@ -32,12 +29,13 @@ dfTranscripts$text <- sub("\\[\\[.*\\]\\]","",dfTranscripts$text)
 RemoveSpeakers <- function(trans){
 	trans <- paste0("|",trans,"|")
 	frames <- strsplit(trans,"\\|")[[1]]
-	processed.frames <- sapply(frames[grep("\\:",frames)], function(f) {
-																dialogue<-strsplit(f,":")[[1]]
-																do.call(paste,as.list(c(
-																	dialogue[2:length(dialogue)],sep="\\:")
-																					  ))
-															})
+	processed.frames <- sapply(frames[grep("\\:",frames)], 
+							   function(f) {
+							   	dialogue<-strsplit(f,":")[[1]]
+							   	do.call(paste,as.list(c(
+							   		dialogue[2:length(dialogue)],sep="\\:")
+							   	))
+							   })
 	frames[grep("\\:",frames)] <- processed.frames
 	do.call(paste,as.list(c(frames,sep="|")))
 }
@@ -45,36 +43,47 @@ RemoveSpeakers <- function(trans){
 dfTranscripts$text <- sapply(dfTranscripts$text,RemoveSpeakers)
 
 
-##### dtm
+#### Create dtm ####
 
-dtm <- create_matrix(dfTranscripts$text,language="english",
-					 stripWhitespace=T, toLower=T,stemWords=T,removeStopwords=T,
-					 removeNumbers=TRUE, removePunctuation=T,removeSparseTerms=1-(2/nrow(dfTranscripts))
+dtm.control <- list(
+	tolower 			= T,
+	removePunctuation 	= T,
+	removeNumbers 		= T,
+	stopwords 			= c(stopwords("english"),
+					 extendedstopwords),
+	stemming 			= T,
+	wordLengths 		= c(3,Inf)
 )
-#					 weighting=weightTfIdf)
 
-# Drop documents with no text (left)
-dtm <- dtm[rowSums(as.matrix(dtm))>0,]
+dtm <- DocumentTermMatrix(Corpus(VectorSource(dfTranscripts$text)),
+						  control = dtm.control)
 
 
-#### LDA
-set.seed(11)
+# Drop documents with little or no text (left)
+dtm <- dtm[rowSums(as.matrix(dtm))>3,]
+
+
+#### Topic Modeling - LDA ####
+set.seed(1024)
 trainpoints <- sample(1:nrow(dtm),0.8*nrow(dtm),replace=F)
 
-k <- 10
+k <- 4
 lda <- LDA(dtm[trainpoints,], k)
-
-terms(lda,3)
-
-t<-topics(lda)
-names(t)<-1:length(t)
-hist(t,breaks=c(0,1:k),labels=terms(lda))
+terms(lda,10)
 
 
+#### Examining Results ####
+
+ldatopics<-topics(lda)
+names(ldatopics)<-1:length(ldatopics)
+hist(ldatopics,breaks=c(0,1:k),labels=terms(lda))
 
 
-
-
-
+termgenerator <- posterior(lda)$terms
+y<-apply(termgenerator,1,function(x) x[order(x,decreasing=T)[1:100]])
+plot(1:100,y[,1],type="l",col=1,ylim=c(min(y),max(y)))
+lines(1:100,y[,2],type="l",col=2)
+lines(1:100,y[,3],type="l",col=3)
+lines(1:100,y[,4],type="l",col=4)
 
 
